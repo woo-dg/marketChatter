@@ -1,0 +1,248 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Provider {
+  KALSHI
+  POLYMARKET
+  X
+}
+
+enum MarketStatus {
+  OPEN
+  RESOLVED
+  CANCELLED
+  PAUSED
+}
+
+enum StanceLabel {
+  YES
+  NO
+  NEUTRAL
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum AnalyticsEventType {
+  MARKET_VIEW
+  MARKET_CLICK
+  MARKET_FAVORITE
+  SEARCH
+  POST_CLICK
+  CATEGORY_VIEW
+  CAROUSEL_INTERACTION
+}
+
+model Category {
+  id          String               @id @default(cuid())
+  slug        String               @unique
+  name        String
+  description String?
+  icon        String?
+  active      Boolean              @default(true)
+
+  markets     Market[]
+  sources     CategorySourceAccount[]
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([active, slug])
+}
+
+model SourceAccount {
+  id                 String                   @id @default(cuid())
+  provider           Provider
+  providerUserId     String
+  handle             String
+  displayName        String
+  profileImageUrl    String?
+  verified           Boolean                  @default(false)
+  active             Boolean                  @default(true)
+  trustScore         Float                    @default(0.5)
+  priorityWeight     Float                    @default(1.0)
+  latestSyncedPostId String?
+  latestSyncedAt     DateTime?
+
+  categories         CategorySourceAccount[]
+  posts              Post[]
+
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@unique([provider, providerUserId])
+  @@index([active, provider])
+  @@index([handle])
+}
+
+model CategorySourceAccount {
+  id              String         @id @default(cuid())
+  categoryId      String
+  sourceAccountId String
+
+  category        Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  sourceAccount   SourceAccount  @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, sourceAccountId])
+  @@index([categoryId])
+  @@index([sourceAccountId])
+}
+
+model Market {
+  id               String            @id @default(cuid())
+  provider         Provider
+  providerMarketId String
+  slug             String            @unique
+  title            String
+  subtitle         String?
+  description      String?
+  url              String?
+  rulesUrl         String?
+
+  categoryId       String?
+  category         Category?         @relation(fields: [categoryId], references: [id])
+
+  status           MarketStatus      @default(OPEN)
+  endDate          DateTime?
+  resolvedOutcome  String?
+  active           Boolean           @default(true)
+
+  canonicalGroupId String?           /// used to group near-duplicate markets
+
+  snapshots        MarketSnapshot[]
+  matches          MarketPostMatch[]
+
+  tags             MarketTag[]
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@unique([provider, providerMarketId])
+  @@index([active, status, endDate])
+  @@index([categoryId, active])
+}
+
+model MarketSnapshot {
+  id           String   @id @default(cuid())
+  marketId     String
+  market       Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  yesProbability Float
+  noProbability  Float
+  volume         Float?
+  liquidity      Float?
+
+  fetchedAt     DateTime @default(now())
+
+  @@index([marketId, fetchedAt(sort: Desc)])
+}
+
+model Post {
+  id              String          @id @default(cuid())
+  provider        Provider
+  providerPostId  String
+  sourceAccountId String
+  sourceAccount   SourceAccount   @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
+
+  url            String
+  text           String
+  postedAt       DateTime
+
+  replyCount     Int?             @default(0)
+  repostCount    Int?             @default(0)
+  likeCount      Int?             @default(0)
+  quoteCount     Int?             @default(0)
+
+  mediaJson      Json?
+  rawJson        Json?
+
+  matches        MarketPostMatch[]
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([provider, providerPostId])
+  @@index([postedAt])
+  @@index([sourceAccountId, postedAt])
+}
+
+model MarketPostMatch {
+  id               String       @id @default(cuid())
+  marketId         String
+  postId           String
+
+  market           Market       @relation(fields: [marketId], references: [id], onDelete: Cascade)
+  post             Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  relevanceScore   Float        @default(0.0)
+  stanceLabel      StanceLabel?
+  stanceConfidence Float?       @default(0.0)
+
+  relevanceMethod  String?
+  stanceMethod     String?
+  rationaleSummary String?
+
+  hidden           Boolean      @default(false)
+  pinned           Boolean      @default(false)
+  manualOverride   Boolean      @default(false)
+
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@unique([marketId, postId])
+  @@index([marketId])
+  @@index([postId])
+  @@index([pinned, hidden])
+}
+
+model JobRun {
+  id           String     @id @default(cuid())
+  jobType      String
+  status       JobStatus  @default(PENDING)
+  startedAt    DateTime   @default(now())
+  finishedAt   DateTime?
+  metadata     Json?
+  errorMessage String?
+
+  @@index([jobType, startedAt(sort: Desc)])
+  @@index([status])
+}
+
+model AnalyticsEvent {
+  id        String              @id @default(cuid())
+  eventType AnalyticsEventType
+  payload   Json
+  createdAt DateTime            @default(now())
+
+  @@index([eventType, createdAt(sort: Desc)])
+}
+
+model MarketTag {
+  id        String   @id @default(cuid())
+  marketId  String
+  label     String
+
+  market    Market   @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([marketId])
+  @@index([label])
+}
