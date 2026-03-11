@@ -1,6 +1,6 @@
 ## MarketChatter
 
-**MarketChatter** is a full‑stack Next.js app that aggregates top prediction markets from Kalshi & Polymarket and surfaces high‑signal posts from curated X accounts for each market. It is designed as a production‑grade foundation with a modular ingestion pipeline, relevance/stance engine, and a premium dark UI.
+**MarketChatter** is a full‑stack Next.js app that aggregates top prediction markets from Kalshi & Polymarket and surfaces high‑signal posts from curated X accounts for each market. It is designed as a production‑grade foundation with a modular ingestion pipeline, relevance/stance engine, and a premium dark UI. heyyy
 
 ### Stack
 
