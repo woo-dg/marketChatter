@@ -8,14 +8,19 @@ import { useMarketSpotlight } from "./market-spotlight-overlay";
 type Props = {
   market: {
     id: string;
+    slug?: string;
     title: string;
     subtitle?: string | null;
     provider: string;
     category?: { id: string; name: string; slug: string } | null;
-    yesProbability: number;
-    noProbability: number;
-    signalsCount: number;
+    outcomesJson?: string | null;
+    outcomePricesJson?: string | null;
+    yesProbability?: number;
+    noProbability?: number;
+    volume?: number | null;
+    signalsCount?: number;
     endDate: string | null;
+    tags?: string[];
   };
 };
 
@@ -24,8 +29,36 @@ const providerColors: Record<string, string> = {
   POLYMARKET: "from-sky-400 to-sky-500",
 };
 
+function parsePrices(m: Props["market"]): { yes: number; no: number } {
+  if (m.yesProbability != null && m.noProbability != null) {
+    return { yes: m.yesProbability, no: m.noProbability };
+  }
+  if (!m.outcomePricesJson) return { yes: 0.5, no: 0.5 };
+  try {
+    const prices: string[] = JSON.parse(m.outcomePricesJson);
+    const outcomes: string[] = m.outcomesJson ? JSON.parse(m.outcomesJson) : [];
+    const yesIdx = outcomes.findIndex((o) => o.toLowerCase() === "yes");
+    if (yesIdx >= 0 && prices[yesIdx]) {
+      const y = parseFloat(prices[yesIdx]);
+      return { yes: y, no: yesIdx === 0 && prices[1] ? parseFloat(prices[1]) : 1 - y };
+    }
+    if (prices.length >= 2) {
+      return { yes: parseFloat(prices[0]), no: parseFloat(prices[1]) };
+    }
+  } catch { /* fallback */ }
+  return { yes: 0.5, no: 0.5 };
+}
+
+function formatVolume(v: number | null | undefined): string | null {
+  if (!v) return null;
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`;
+  return `$${v.toFixed(0)}`;
+}
+
 export function MarketCard({ market }: Props) {
   const { open } = useMarketSpotlight();
+  const { yes, no } = parsePrices(market);
 
   const providerLabel =
     market.provider === "KALSHI"
@@ -35,11 +68,10 @@ export function MarketCard({ market }: Props) {
         : market.provider;
 
   const endLabel = market.endDate
-    ? new Intl.DateTimeFormat("en", {
-        month: "short",
-        day: "numeric",
-      }).format(new Date(market.endDate))
-    : "TBD";
+    ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(market.endDate))
+    : null;
+
+  const vol = formatVolume(market.volume);
 
   return (
     <motion.button
@@ -52,7 +84,7 @@ export function MarketCard({ market }: Props) {
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950/70 px-2.5 py-1 text-[10px] text-zinc-400">
           <span
-            className={`h-4 w-4 rounded-full bg-gradient-to-br ${providerColors[market.provider] ?? "from-zinc-500 to-zinc-700"} text-[9px] font-semibold text-black shadow-md shadow-emerald-500/30`}
+            className={`h-4 w-4 rounded-full bg-gradient-to-br ${providerColors[market.provider] ?? "from-zinc-500 to-zinc-700"} text-[9px] font-semibold text-black shadow-md`}
           >
             <span className="flex h-full items-center justify-center">
               {providerLabel[0]}
@@ -62,42 +94,39 @@ export function MarketCard({ market }: Props) {
           {market.category && (
             <>
               <span className="h-1 w-1 rounded-full bg-zinc-700" />
-              <span className="text-[10px] text-zinc-500">
-                {market.category.name}
-              </span>
+              <span className="text-[10px] text-zinc-500">{market.category.name}</span>
             </>
           )}
         </div>
-        <div className="flex items-center gap-1 text-[10px] text-emerald-400/80">
-          <SignalHigh className="h-3 w-3" />
-          <span>{market.signalsCount || 0} signals</span>
-        </div>
+        {vol && (
+          <span className="text-[10px] text-zinc-500">{vol} vol</span>
+        )}
       </div>
 
       <div className="mb-3 flex flex-1 flex-col gap-1">
-        <p className="line-clamp-2 text-sm font-medium text-zinc-100">
-          {market.title}
-        </p>
-        {market.subtitle && (
-          <p className="line-clamp-1 text-[11px] text-zinc-500">
-            {market.subtitle}
-          </p>
+        <p className="line-clamp-2 text-sm font-medium text-zinc-100">{market.title}</p>
+        {market.subtitle && market.subtitle !== market.title && (
+          <p className="line-clamp-1 text-[11px] text-zinc-500">{market.subtitle}</p>
         )}
       </div>
 
       <div className="mt-auto flex items-end justify-between gap-2">
-        <ProbabilitySplit
-          yes={market.yesProbability}
-          no={market.noProbability}
-        />
+        <ProbabilitySplit yes={yes} no={no} />
         <div className="flex flex-col items-end gap-1 text-[10px] text-zinc-500">
-          <span className="inline-flex items-center gap-1">
-            <BadgeCheck className="h-3 w-3 text-zinc-500" />
-            <span>Ends {endLabel}</span>
-          </span>
+          {(market.signalsCount ?? 0) > 0 && (
+            <span className="inline-flex items-center gap-1 text-emerald-400/80">
+              <SignalHigh className="h-3 w-3" />
+              {market.signalsCount} signals
+            </span>
+          )}
+          {endLabel && (
+            <span className="inline-flex items-center gap-1">
+              <BadgeCheck className="h-3 w-3" />
+              Ends {endLabel}
+            </span>
+          )}
         </div>
       </div>
     </motion.button>
   );
 }
-

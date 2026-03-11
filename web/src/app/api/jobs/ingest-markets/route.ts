@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
-import { ingestTopMarkets } from "@/services/marketIngestion";
+import { syncAllPolymarkets } from "@/services/marketIngestion";
 
 export async function POST() {
-  await ingestTopMarkets();
-  return NextResponse.json({ ok: true });
+  try {
+    await syncAllPolymarkets();
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: (error as Error).message },
+      { status: 500 },
+    );
+  }
 }
-

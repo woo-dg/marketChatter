@@ -1,54 +1,16 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum Provider {
-  KALSHI
-  POLYMARKET
-  X
-}
-
-enum MarketStatus {
-  OPEN
-  RESOLVED
-  CANCELLED
-  PAUSED
-}
-
-enum StanceLabel {
-  YES
-  NO
-  NEUTRAL
-}
-
-enum JobStatus {
-  PENDING
-  RUNNING
-  SUCCESS
-  FAILED
-}
-
-enum AnalyticsEventType {
-  MARKET_VIEW
-  MARKET_CLICK
-  MARKET_FAVORITE
-  SEARCH
-  POST_CLICK
-  CATEGORY_VIEW
-  CAROUSEL_INTERACTION
-}
+// Provider: KALSHI | POLYMARKET | X
+// MarketStatus: OPEN | RESOLVED | CANCELLED | PAUSED
+// StanceLabel: YES | NO | NEUTRAL
+// JobStatus: PENDING | RUNNING | SUCCESS | FAILED
 
 model Category {
   id          String               @id @default(cuid())
@@ -56,6 +18,7 @@ model Category {
   name        String
   description String?
   icon        String?
+  tagId       String?              @unique
   active      Boolean              @default(true)
 
   markets     Market[]
@@ -69,7 +32,7 @@ model Category {
 
 model SourceAccount {
   id                 String                   @id @default(cuid())
-  provider           Provider
+  provider           String
   providerUserId     String
   handle             String
   displayName        String
@@ -107,8 +70,10 @@ model CategorySourceAccount {
 
 model Market {
   id               String            @id @default(cuid())
-  provider         Provider
+  provider         String
   providerMarketId String
+  providerEventId  String?
+  providerEventSlug String?
   slug             String            @unique
   title            String
   subtitle         String?
@@ -119,16 +84,21 @@ model Market {
   categoryId       String?
   category         Category?         @relation(fields: [categoryId], references: [id])
 
-  status           MarketStatus      @default(OPEN)
+  status           String            @default("OPEN")
   endDate          DateTime?
   resolvedOutcome  String?
   active           Boolean           @default(true)
 
-  canonicalGroupId String?           /// used to group near-duplicate markets
+  outcomesJson     String?
+  outcomePricesJson String?
+  volume           Float?            @default(0)
+  liquidity        Float?            @default(0)
+
+  lastSyncedAt     DateTime?
+  canonicalGroupId String?
 
   snapshots        MarketSnapshot[]
   matches          MarketPostMatch[]
-
   tags             MarketTag[]
 
   createdAt        DateTime          @default(now())
@@ -137,6 +107,8 @@ model Market {
   @@unique([provider, providerMarketId])
   @@index([active, status, endDate])
   @@index([categoryId, active])
+  @@index([provider, active, status])
+  @@index([slug])
 }
 
 model MarketSnapshot {
@@ -151,12 +123,12 @@ model MarketSnapshot {
 
   fetchedAt     DateTime @default(now())
 
-  @@index([marketId, fetchedAt(sort: Desc)])
+  @@index([marketId, fetchedAt])
 }
 
 model Post {
   id              String          @id @default(cuid())
-  provider        Provider
+  provider        String
   providerPostId  String
   sourceAccountId String
   sourceAccount   SourceAccount   @relation(fields: [sourceAccountId], references: [id], onDelete: Cascade)
@@ -170,8 +142,8 @@ model Post {
   likeCount      Int?             @default(0)
   quoteCount     Int?             @default(0)
 
-  mediaJson      Json?
-  rawJson        Json?
+  mediaJson      String?
+  rawJson        String?
 
   matches        MarketPostMatch[]
 
@@ -192,7 +164,7 @@ model MarketPostMatch {
   post             Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   relevanceScore   Float        @default(0.0)
-  stanceLabel      StanceLabel?
+  stanceLabel      String?
   stanceConfidence Float?       @default(0.0)
 
   relevanceMethod  String?
@@ -215,23 +187,23 @@ model MarketPostMatch {
 model JobRun {
   id           String     @id @default(cuid())
   jobType      String
-  status       JobStatus  @default(PENDING)
+  status       String     @default("PENDING")
   startedAt    DateTime   @default(now())
   finishedAt   DateTime?
-  metadata     Json?
+  metadata     String?
   errorMessage String?
 
-  @@index([jobType, startedAt(sort: Desc)])
+  @@index([jobType, startedAt])
   @@index([status])
 }
 
 model AnalyticsEvent {
-  id        String              @id @default(cuid())
-  eventType AnalyticsEventType
-  payload   Json
-  createdAt DateTime            @default(now())
+  id        String   @id @default(cuid())
+  eventType String
+  payload   String
+  createdAt DateTime @default(now())
 
-  @@index([eventType, createdAt(sort: Desc)])
+  @@index([eventType, createdAt])
 }
 
 model MarketTag {
@@ -243,6 +215,7 @@ model MarketTag {
 
   createdAt DateTime @default(now())
 
+  @@unique([marketId, label])
   @@index([marketId])
   @@index([label])
 }

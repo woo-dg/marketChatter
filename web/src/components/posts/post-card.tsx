@@ -1,5 +1,5 @@
 import { ArrowUpRight, Plus, Minus } from "lucide-react";
-import type { StanceLabel } from "@prisma/client";
+import type { StanceLabel } from "@/lib/constants";
 
 type PostCardProps = {
   post: {

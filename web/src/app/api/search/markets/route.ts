@@ -1,74 +1,59 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { searchQuerySchema } from "@/lib/validation";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
-  const parsed = searchQuerySchema.safeParse({
-    q: url.searchParams.get("q") ?? "",
-    category: url.searchParams.get("category") ?? undefined,
-    provider: url.searchParams.get("provider") ?? undefined,
-    limit: url.searchParams.get("limit") ?? undefined,
-  });
+  const q = url.searchParams.get("q")?.trim();
+  const category = url.searchParams.get("category") || undefined;
+  const limitParam = parseInt(url.searchParams.get("limit") || "20", 10);
+  const limit = Math.min(Math.max(limitParam, 1), 50);
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid query" }, { status: 400 });
+  if (!q) {
+    return NextResponse.json({ error: "q parameter required" }, { status: 400 });
   }
 
-  const { q, category, provider, limit } = parsed.data;
+  const where: any = {
+    OR: [
+      { title: { contains: q } },
+      { description: { contains: q } },
+      { slug: { contains: q } },
+      { tags: { some: { label: { contains: q } } } },
+    ],
+  };
+
+  if (category) {
+    where.category = { slug: category };
+  }
 
   const results = await prisma.market.findMany({
-    where: {
-      active: true,
-      AND: [
-        {
-          OR: [
-            { title: { contains: q, mode: "insensitive" } },
-            { subtitle: { contains: q, mode: "insensitive" } },
-            { description: { contains: q, mode: "insensitive" } },
-          ],
-        },
-        category
-          ? {
-              category: {
-                slug: category,
-              },
-            }
-          : {},
-        provider ? { provider: provider as any } : {},
-      ],
-    },
+    where,
+    orderBy: [{ active: "desc" }, { volume: "desc" }],
     take: limit,
     include: {
       category: true,
-      snapshots: {
-        orderBy: { fetchedAt: "desc" },
-        take: 1,
-      },
-      matches: {
-        where: { hidden: false },
-        select: { id: true },
-      },
+      tags: { select: { label: true } },
+      matches: { where: { hidden: false }, select: { id: true } },
     },
   });
 
   return NextResponse.json(
-    results.map((m) => {
-      const latest = m.snapshots[0];
-      return {
-        id: m.id,
-        title: m.title,
-        subtitle: m.subtitle,
-        provider: m.provider,
-        category: m.category
-          ? { id: m.category.id, name: m.category.name, slug: m.category.slug }
-          : null,
-        yesProbability: latest?.yesProbability ?? 0.5,
-        noProbability: latest?.noProbability ?? 0.5,
-        signalsCount: m.matches.length,
-        endDate: m.endDate ? m.endDate.toISOString() : null,
-      };
-    }),
+    results.map((m) => ({
+      id: m.id,
+      slug: m.slug,
+      title: m.title,
+      subtitle: m.subtitle,
+      provider: m.provider,
+      active: m.active,
+      category: m.category
+        ? { id: m.category.id, name: m.category.name, slug: m.category.slug }
+        : null,
+      outcomesJson: m.outcomesJson,
+      outcomePricesJson: m.outcomePricesJson,
+      volume: m.volume,
+      liquidity: m.liquidity,
+      signalsCount: m.matches.length,
+      endDate: m.endDate?.toISOString() ?? null,
+      tags: m.tags.map((t) => t.label),
+    })),
   );
 }
-

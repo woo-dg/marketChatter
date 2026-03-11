@@ -1,4 +1,4 @@
-import { StanceLabel } from "@prisma/client";
+import { StanceLabel } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 
 // Very lightweight stance heuristic that can later be replaced by LLM/embeddings.

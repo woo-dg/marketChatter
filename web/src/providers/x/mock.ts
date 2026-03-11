@@ -1,4 +1,4 @@
-import { Provider } from "@prisma/client";
+import { Provider } from "@/lib/constants";
 import type { NormalizedPost, SocialProvider } from "./types";
 
 const now = () => new Date();

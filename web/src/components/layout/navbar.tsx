@@ -1,4 +1,4 @@
-import { Sparkles, Search, LineChart3 } from "lucide-react";
+import { Sparkles, Search, LineChart } from "lucide-react";
 import Link from "next/link";
 
 export function Navbar() {
@@ -26,7 +26,7 @@ export function Navbar() {
             href="/admin"
             className="inline-flex items-center gap-1 rounded-full border border-zinc-800/80 bg-zinc-950/60 px-3 py-1 text-xs text-zinc-400 transition hover:border-zinc-600 hover:text-zinc-100"
           >
-            <LineChart3 className="h-3 w-3" />
+            <LineChart className="h-3 w-3" />
             Admin
           </Link>
         </nav>

@@ -1,4 +1,4 @@
-import { MarketStatus, Provider } from "@prisma/client";
+import { MarketStatus, Provider } from "@/lib/constants";
 import type { MarketProvider, NormalizedMarket } from "./types";
 
 const now = () => new Date();

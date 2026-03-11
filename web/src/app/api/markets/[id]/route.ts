@@ -3,17 +3,17 @@ import { prisma } from "@/lib/db";
 
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = params;
-  const market = await prisma.market.findUnique({
+  const { id } = await params;
+
+  // Try by ID first, then by slug
+  let market = await prisma.market.findUnique({
     where: { id },
     include: {
       category: true,
-      snapshots: {
-        orderBy: { fetchedAt: "desc" },
-        take: 50,
-      },
+      tags: { select: { label: true } },
+      snapshots: { orderBy: { fetchedAt: "desc" }, take: 1 },
       matches: {
         where: { hidden: false },
         orderBy: [
@@ -21,47 +21,60 @@ export async function GET(
           { relevanceScore: "desc" },
           { createdAt: "desc" },
         ],
-        include: {
-          post: {
-            include: { sourceAccount: true },
-          },
-        },
+        include: { post: { include: { sourceAccount: true } } },
+        take: 40,
       },
     },
   });
 
   if (!market) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    market = await prisma.market.findUnique({
+      where: { slug: id },
+      include: {
+        category: true,
+        tags: { select: { label: true } },
+        snapshots: { orderBy: { fetchedAt: "desc" }, take: 1 },
+        matches: {
+          where: { hidden: false },
+          orderBy: [
+            { pinned: "desc" },
+            { relevanceScore: "desc" },
+            { createdAt: "desc" },
+          ],
+          include: { post: { include: { sourceAccount: true } } },
+          take: 40,
+        },
+      },
+    });
   }
 
-  const latestSnapshot = market.snapshots[0]
-    ? {
-        yesProbability: market.snapshots[0].yesProbability,
-        noProbability: market.snapshots[0].noProbability,
-        fetchedAt: market.snapshots[0].fetchedAt.toISOString(),
-      }
-    : null;
+  if (!market) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
   return NextResponse.json({
     market: {
       id: market.id,
+      slug: market.slug,
       title: market.title,
       subtitle: market.subtitle,
       description: market.description,
       url: market.url,
       rulesUrl: market.rulesUrl,
       provider: market.provider,
+      providerEventSlug: market.providerEventSlug,
       status: market.status,
-      endDate: market.endDate ? market.endDate.toISOString() : null,
+      active: market.active,
+      endDate: market.endDate?.toISOString() ?? null,
+      outcomesJson: market.outcomesJson,
+      outcomePricesJson: market.outcomePricesJson,
+      volume: market.volume,
+      liquidity: market.liquidity,
       category: market.category
-        ? {
-            id: market.category.id,
-            name: market.category.name,
-            slug: market.category.slug,
-          }
+        ? { id: market.category.id, name: market.category.name, slug: market.category.slug }
         : null,
+      tags: market.tags.map((t) => t.label),
     },
-    latestSnapshot,
     matches: market.matches.map((m) => ({
       id: m.id,
       relevanceScore: m.relevanceScore,
@@ -87,4 +100,3 @@ export async function GET(
     })),
   });
 }
-

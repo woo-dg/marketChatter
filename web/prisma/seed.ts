@@ -1,4 +1,8 @@
-import { PrismaClient, Provider, MarketStatus, StanceLabel } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+
+const Provider = { KALSHI: "KALSHI", POLYMARKET: "POLYMARKET", X: "X" } as const;
+const MarketStatus = { OPEN: "OPEN", RESOLVED: "RESOLVED", CANCELLED: "CANCELLED", PAUSED: "PAUSED" } as const;
+const StanceLabel = { YES: "YES", NO: "NO", NEUTRAL: "NEUTRAL" } as const;
 
 const prisma = new PrismaClient();
 
@@ -218,31 +222,32 @@ async function main() {
     },
   });
 
-  await prisma.marketSnapshot.createMany({
-    data: [
-      {
-        marketId: aiMarket.id,
-        yesProbability: 0.62,
-        noProbability: 0.38,
-        volume: 120000,
-        liquidity: 50000,
-      },
-      {
-        marketId: electionMarket.id,
-        yesProbability: 0.55,
-        noProbability: 0.45,
-        volume: 850000,
-        liquidity: 210000,
-      },
-      {
-        marketId: btcMarket.id,
-        yesProbability: 0.48,
-        noProbability: 0.52,
-        volume: 430000,
-        liquidity: 95000,
-      },
-    ],
-    skipDuplicates: true,
+  await prisma.marketSnapshot.create({
+    data: {
+      marketId: aiMarket.id,
+      yesProbability: 0.62,
+      noProbability: 0.38,
+      volume: 120000,
+      liquidity: 50000,
+    },
+  });
+  await prisma.marketSnapshot.create({
+    data: {
+      marketId: electionMarket.id,
+      yesProbability: 0.55,
+      noProbability: 0.45,
+      volume: 850000,
+      liquidity: 210000,
+    },
+  });
+  await prisma.marketSnapshot.create({
+    data: {
+      marketId: btcMarket.id,
+      yesProbability: 0.48,
+      noProbability: 0.52,
+      volume: 430000,
+      liquidity: 95000,
+    },
   });
 
   // Example posts + matches

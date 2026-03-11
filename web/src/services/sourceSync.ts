@@ -1,4 +1,4 @@
-import { Provider } from "@prisma/client";
+import { Provider } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logging";
 import type { SocialProvider } from "@/providers/x/types";
@@ -11,7 +11,6 @@ export async function syncSourcesAndPosts() {
     data: {
       jobType: "social.syncSourcesAndPosts",
       status: "RUNNING",
-      metadata: {},
     },
   });
 
@@ -58,8 +57,8 @@ export async function syncSourcesAndPosts() {
             repostCount: p.repostCount ?? 0,
             likeCount: p.likeCount ?? 0,
             quoteCount: p.quoteCount ?? 0,
-            mediaJson: p.mediaJson as any,
-            rawJson: p.rawJson as any,
+            mediaJson: p.mediaJson ? JSON.stringify(p.mediaJson) : null,
+            rawJson: p.rawJson ? JSON.stringify(p.rawJson) : null,
           },
           create: {
             provider: p.provider,
@@ -72,8 +71,8 @@ export async function syncSourcesAndPosts() {
             repostCount: p.repostCount ?? 0,
             likeCount: p.likeCount ?? 0,
             quoteCount: p.quoteCount ?? 0,
-            mediaJson: p.mediaJson as any,
-            rawJson: p.rawJson as any,
+            mediaJson: p.mediaJson ? JSON.stringify(p.mediaJson) : null,
+            rawJson: p.rawJson ? JSON.stringify(p.rawJson) : null,
           },
         });
 
